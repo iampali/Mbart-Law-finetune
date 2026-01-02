@@ -1,0 +1,16 @@
+transformers
+peft
+accelerate
+bitsandbytes
+datasets
+tokenizers
+numpy
+pandas
+tqdm
+protobuf
+sentencepiece
+evaluate
+lxml
+sacrebleu
+wandb
+python-dotenv
