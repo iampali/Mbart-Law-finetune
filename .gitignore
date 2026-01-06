@@ -6,4 +6,5 @@ tokenized_dataset/
 wandb/
 .env
 data/
-information.log
+*.log
+*.ipynb

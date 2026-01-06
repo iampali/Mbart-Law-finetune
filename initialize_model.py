@@ -7,26 +7,11 @@ from transformers import AutoModelForSeq2SeqLM, BitsAndBytesConfig, AutoTokenize
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
 from setup_logging import logger
 
-def init_tokenizer(language) :
+def init_tokenizer() :
 
     tokenizer = AutoTokenizer.from_pretrained(checkpoint)
 
-    if language == "Portuguese" :
-        target_lang = 'pt_XX'
-
-    elif language == "French" :
-        target_lang = 'fr_XX'
-
-    elif language == "Spanish" :
-        target_lang = 'es_XX'
-
-    else :
-        target_lang = 'de_DE'
-
-    tokenizer.tgt_lang = target_lang
-    tokenizer.src_lang = 'en_XX'
-
-    return tokenizer, target_lang
+    return tokenizer
 
 def init_model(get_lora_model : bool = True):
 

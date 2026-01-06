@@ -1,21 +1,20 @@
 from lxml import etree
 import pandas as pd
-import os
 from pathlib import Path
 import re
+from environment_variables import raw_data_path
+from setup_logging import logger
 
 
-def get_data(file_name):
+def get_data(lang_name):
     # Path to TMX file
-    tmx_path = f"data/{file_name}.tmx"
+    tmx_path = f"data/English-{lang_name}.tmx"
 
     # Parse the TMX XML
     tree = etree.parse(tmx_path)
     root = tree.getroot()
 
     rows = []
-
-    #print(f"Creating the dataframe for {lang_name} language")
     # TMX content is inside <body>
     body = root.find("body")
 
@@ -41,24 +40,70 @@ def get_data(file_name):
         # Only keep pairs where both languages exist
         if en_text and second_text:
             rows.append({
-                "source": en_text,
-                "target" : second_text
+                "english": en_text,
+                lang_name : second_text
             })
 
     # Create DataFrame
     return pd.DataFrame(rows)
 
-def get_final_dataframe(language):
-    filename = f'English-{language}'
+def get_final_dataframe():
     
-    print(f"Creating dataframe for {language}", flush=True)
+    dir_path = Path(raw_data_path)
+    files = [f for f in dir_path.iterdir() if f.is_file()]
+    files = sorted(files, key=lambda x : x.stat().st_size)
+    languages = [f.name.split('.')[0].split('-')[1] for f in files]
+    # data = {}
+    merged_df = pd.DataFrame()
+    for language in languages:
+        
+        logger.info(f"Creating dataframe for {language}")
     
-    df = get_data(filename)
-    df =  df.drop_duplicates(subset=["source"])
-    df = df.map(clean_text)
-    #final_df = pd.concat([df for df in data.values()], ignore_index=True)
+        # data[language] = get_data(language)
+        # data[language] = data[language].map(clean_text)
+        # data[language] = data[language].sort_values("english")
 
-    return df
+        df = get_data(language)
+        df = df.map(clean_text).sort_values("english")
+        
+        if merged_df.empty:
+            merged_df = df
+        else:
+            merged_df = merged_df.merge(df, on="english", how="inner")
+
+    # base_df = min(data.values(), key=len)
+    # merged_df = base_df.copy()
+
+    # for df in data.values():
+    #     if df is not base_df:
+    #         merged_df = merged_df.merge(df, on="english", how="inner")
+
+    
+    
+    merged_df = merged_df.drop_duplicates(subset=["english"])
+
+    # for language in list(merged_df.columns):
+    
+    #     if language == "Portuguese" :
+    #         target_lang = '<pt_XX>'
+
+    #     elif language == "French" :
+    #         target_lang = '<fr_XX>'
+
+    #     elif language == "Spanish" :
+    #         target_lang = '<es_XX>'
+        
+    #     elif language == "english":
+    #         target_lang = '<en_XX>'
+        
+    #     else :
+    #         target_lang = '<de_DE>'
+        
+    #     merged_df[language] = merged_df[language].apply(lambda x : f"{target_lang} {x}")
+
+    # final_df = pd.concat([df for df in data.values()], ignore_index=True)
+
+    return merged_df
 
 
 def clean_text(text):

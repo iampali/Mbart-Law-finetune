@@ -6,7 +6,7 @@ from datasets import load_from_disk, DatasetDict
 from setup_logging import logger
 
 
-def get_tokenized_dataset(tokenizer, language, dataset_length):
+def get_tokenized_dataset(tokenizer, dataset_length):
 
     """
     In this function, we're checking if the tokenized dataset is already avaiable in the path or not. If the tokneized dataset if already present then we're gonna take that from that part, otherwise we'll tokenize the data from scrach.
@@ -18,23 +18,19 @@ def get_tokenized_dataset(tokenizer, language, dataset_length):
 
     dataset_length : default value is 0, a certain amount from dataset like if you want to train the model for first 10000 rows then specify dataset_length = 10000
     """
-
-
-    logger.info(f"The choosed language is {language}")
-    path = tokenized_data_path + language
     
-    if os.path.exists(path):
-        logger.info(f"Tokenized dataset for {language} is already present at {path}")
-        tokenized_datasets = load_from_disk(path)
+    if os.path.exists(tokenized_data_path):
+        logger.info(f"Tokenized dataset is already present at {tokenized_data_path}")
+        tokenized_datasets = load_from_disk(tokenized_data_path)
     else:
         # Apply preprocessing
-        logger.info(f"Tokenized dataset for {language} not found.. creating and tokenzing data")
-        dataframe = get_final_dataframe(language)
+        logger.info(f"Tokenized dataset for not found.. creating and tokenzing data")
+        dataframe = get_final_dataframe()
         dataset = create_dataset_dict(dataframe)
         logger.info("Creating the dataset.. staring tokenizing it")
         tokenized_datasets = map_dataset(tokenizer, dataset)
-        tokenized_datasets.save_to_disk(path)
-        logger.info(f"Tokenization successfull and saved the tokenized data on {path}")
+        tokenized_datasets.save_to_disk(tokenized_data_path)
+        logger.info(f"Tokenization successfull and saved the tokenized data on {tokenized_data_path}")
 
     if dataset_length == 0 :
         return tokenized_datasets

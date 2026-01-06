@@ -14,7 +14,6 @@ torch.cuda.empty_cache()
 
 parser = argparse.ArgumentParser(description="Pass some Arguemtns to train the model")
 
-parser.add_argument("--language", default="French", choices=["Portuguese","French","Spanish","German"], help="Select the language on which you want to train the model")
 parser.add_argument("--dataset_length",type= int, default=0, help="Select how much data you want to train the model, by default it's 0 which means whole data.")
 parser.add_argument("--eval_strategy", default="no", help="Would you want to eval your model while training.")
 parser.add_argument("--eval_steps", type=int, default=100, help="Steps on which you want to eval your model")
@@ -28,7 +27,7 @@ args = parser.parse_args()
 
 logger.info(f"Setting up model and tokenizer")
 model = init_model(get_lora_model=True)
-tokenizer,_ = init_tokenizer(args.language)
+tokenizer = init_tokenizer()
 
 # Data collator
 data_collator = DataCollatorForSeq2Seq(
@@ -65,7 +64,7 @@ training_args = Seq2SeqTrainingArguments(
 )
 
 logger.info("Loading tokenized data")
-tokenized_datasets = get_tokenized_dataset(tokenizer, args.language, args.dataset_length)
+tokenized_datasets = get_tokenized_dataset(tokenizer, args.dataset_length)
 
 ## seting up wandb
 load_dotenv()
