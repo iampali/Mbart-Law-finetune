@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+EngToBem/
+output/
+tokenized_dataset/
+wandb/
+.env
+data/
+*.log
+*.ipynb
