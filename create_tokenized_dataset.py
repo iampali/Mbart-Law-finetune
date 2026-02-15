@@ -25,9 +25,11 @@ def get_tokenized_dataset(tokenizer, dataset_length):
     else:
         # Apply preprocessing
         logger.info(f"Tokenized dataset for not found.. creating and tokenzing data")
-        dataframe = get_final_dataframe()
-        dataset = create_dataset_dict(dataframe)
-        logger.info("Creating the dataset.. staring tokenizing it")
+        train_df, test_df = get_final_dataframe()
+        train_dataset, test_dataset = create_dataset_dict(train_df), create_dataset_dict(test_df)
+        dataset = DatasetDict({ "train" : train_dataset,
+                                "test" : test_dataset})
+        logger.info("Created the dataset.. now starting tokenizing it")
         tokenized_datasets = map_dataset(tokenizer, dataset)
         tokenized_datasets.save_to_disk(tokenized_data_path)
         logger.info(f"Tokenization successfull and saved the tokenized data on {tokenized_data_path}")
@@ -41,13 +43,13 @@ def get_tokenized_dataset(tokenizer, dataset_length):
 def filter_dataset(tokenized_datasets, dataset_length):
     logger.info(f"Extracting first {dataset_length} from the dataset.")
     train_data_length = len(tokenized_datasets['train'])
-    val_data_length = len(tokenized_datasets['val'])
+    test_data_length = len(tokenized_datasets['test'])
     per_train = round(dataset_length / train_data_length * 100, 2)
-    val_length = round(per_train * val_data_length / 100)
+    test_length = round(per_train * test_data_length / 100)
 
     return DatasetDict({
     "train": tokenized_datasets["train"].select(range(dataset_length)),
-    "val": tokenized_datasets["val"].select(range(val_length)),
-    "test": tokenized_datasets["test"].select(range(val_length)),
+    #"val": tokenized_datasets["val"].select(range(val_length)),
+    "test": tokenized_datasets["test"].select(range(test_length))
     })
 
