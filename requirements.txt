@@ -6,22 +6,22 @@ aiosignal==1.4.0
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.1
-asttokens @ file:///C:/b/abs_9662ywy9fp/croot/asttokens_1743630464377/work
+asttokens==3.0.0
 attrs==25.4.0
 bitsandbytes==0.49.2
 certifi==2026.2.25
 charset-normalizer==3.4.4
 click==8.3.1
-colorama @ file:///C:/Users/dev-admin/perseverance-python-buildout/croot/colorama_1699472650914/work
-comm @ file:///C:/miniconda3/conda-bld/comm_1763119289758/work
+colorama==0.4.6
+comm==0.2.3
 cryptography==46.0.2
 datasets==4.6.0
-debugpy @ file:///C:/miniconda3/conda-bld/debugpy_1762421659047/work
-decorator @ file:///C:/miniconda3/conda-bld/decorator_1757341251593/work
+debugpy==1.8.16
+decorator==5.2.1
 dill==0.4.0
 entmax==1.3
 evaluate==0.4.6
-executing @ file:///C:/miniconda3/conda-bld/executing_1757061247746/work
+executing==2.2.1
 filelock==3.20.0
 frozenlist==1.8.0
 fsspec==2025.12.0
@@ -34,50 +34,51 @@ httpcore==1.0.9
 httpx==0.28.1
 huggingface_hub==0.36.2
 idna==3.11
-ipykernel @ file:///C:/miniconda3/conda-bld/ipykernel_1762946093253/work
+ipykernel==6.31.0
 ipython==9.10.0
-ipython_pygments_lexers @ file:///C:/b/abs_b66hj1lo19/croot/ipython_pygments_lexers_1744753262043/work
-jedi @ file:///C:/b/abs_3a2kbnlclc/croot/jedi_1733987412687/work
+ipython_pygments_lexers==1.1.1
+jedi==0.19.2
 Jinja2==3.1.6
 jsonargparse==3.13.1
-jupyter_client @ file:///C:/Users/task_176839881855479/croot/jupyter_client_1768399067345/work
-jupyter_core @ file:///C:/miniconda3/conda-bld/jupyter_core_1764588340612/work
+jupyter_client==8.8.0
+jupyter_core==5.9.1
 lightning-utilities==0.15.3
 lxml==6.0.2
 markdown-it-py==4.0.0
 MarkupSafe==3.0.2
-matplotlib-inline @ file:///C:/miniconda3/conda-bld/matplotlib-inline_1762779270163/work
+matplotlib-inline==0.2.1
 mdurl==0.1.2
 mpmath==1.3.0
 multidict==6.7.1
 multiprocess==0.70.18
-nest-asyncio @ file:///C:/b/abs_65d6lblmoi/croot/nest-asyncio_1708532721305/work
+nest-asyncio==1.6.0
 networkx==3.6.1
 numpy==1.26.4
-packaging @ file:///C:/miniconda3/conda-bld/packaging_1761049137378/work
+packaging==25.0
 pandas==3.0.1
-parso @ file:///C:/miniconda3/conda-bld/parso_1762781973155/work
+parso==0.8.5
 pdfminer.six==20250506
 peft==0.18.1
 pillow==12.0.0
-platformdirs @ file:///C:/miniconda3/conda-bld/platformdirs_1762356625676/work
+pip==26.0.1
+platformdirs==4.5.0
 polyfile-weave==0.5.7
 portalocker==3.2.0
-prompt_toolkit @ file:///C:/miniconda3/conda-bld/prompt-toolkit_1761745042157/work
+prompt_toolkit==3.0.52
 propcache==0.4.1
 protobuf==4.25.8
-psutil @ file:///C:/miniconda3/conda-bld/psutil_1761896535983/work
-pure_eval @ file:///C:/miniconda3/conda-bld/pure_eval_1757067062212/work
+psutil==7.0.0
+pure_eval==0.2.3
 pyarrow==23.0.1
 pydantic==2.12.5
 pydantic_core==2.41.5
-Pygments @ file:///C:/miniconda3/conda-bld/pygments_1762431426600/work
-python-dateutil @ file:///C:/b/abs_3au_koqnbs/croot/python-dateutil_1716495777160/work
+Pygments==2.19.2
+python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 pytorch-lightning==2.6.1
-pywin32 @ file:///C:/b/abs_6c9w_vp9zi/croot/pywin32_1754670534373/work
+pywin32==311
 PyYAML==6.0.3
-pyzmq @ file:///C:/miniconda3/conda-bld/pyzmq_1762375609374/work
+pyzmq==27.1.0
 regex==2026.2.19
 requests==2.32.5
 rich==14.3.3
@@ -88,9 +89,9 @@ sentencepiece==0.2.1
 sentry-sdk==2.53.0
 setuptools==80.10.2
 shellingham==1.5.4
-six @ file:///C:/b/abs_149wuyuo1o/croot/six_1744271521515/work
+six==1.17.0
 smmap==5.0.2
-stack_data @ file:///C:/miniconda3/conda-bld/stack_data_1757067057854/work
+stack_data==0.6.3
 sudo==1.0.0
 sympy==1.14.0
 tabulate==0.9.0
@@ -98,19 +99,19 @@ tokenizers==0.22.2
 torch==2.10.0+cu128
 torchmetrics==0.10.3
 torchvision==0.25.0+cu128
-tornado @ file:///C:/Users/task_176599264648662/croot/tornado_1765992760941/work
+tornado==6.5.4
 tqdm==4.67.3
-traitlets @ file:///C:/b/abs_bfsnoxl4pq/croot/traitlets_1718227069245/work
+traitlets==5.14.3
 transformers==4.57.6
 typer==0.24.1
 typer-slim==0.24.0
-typing-inspection==0.4.2
 typing_extensions==4.15.0
+typing-inspection==0.4.2
 tzdata==2025.3
 unbabel-comet==2.2.7
 urllib3==2.6.3
 wandb==0.25.0
-wcwidth @ file:///C:/Users/task_176777900306880/croot/wcwidth_1767779219428/work
+wcwidth==0.2.14
 weave==0.52.9
 wheel==0.46.3
 xxhash==3.6.0
