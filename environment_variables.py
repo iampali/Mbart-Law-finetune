@@ -1,8 +1,8 @@
-checkpoint = "facebook/nllb-200-3.3B"
+checkpoint = "facebook/nllb-200-1.3B"
 tokenized_data_path = "./tokenized_dataset/"
 model_save_path = "./output/"
 raw_data_path = "./data/"
-
+temp_file_path = './data/temp/checkpoint.json' # used to save the model output during evaluation before killing the process
 
 langs = ['English', 'French', 'Portuguese', 'Finnish', 'Maltese']
 

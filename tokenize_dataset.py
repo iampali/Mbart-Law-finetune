@@ -1,7 +1,6 @@
-import random
-from datasets import Dataset, DatasetDict
-
-max_length = 250
+from datasets import Dataset
+from environment_variables import tokenized_data_path
+from setup_logging import logger
 
 def create_dataset_dict(df):
     dataset = Dataset.from_pandas(df)
@@ -18,34 +17,40 @@ def preprocess_function(examples, tokenizer):
     # Tokenize inputs with source language
     model_inputs = tokenizer(
         inputs,
-        max_length=max_length,
-        truncation=True,
-        padding="max_length"
+        text_target=targets,
+        truncation=True
     )
 
-    with tokenizer.as_target_tokenizer():
-        labels = tokenizer(
-            targets,
-            max_length=max_length,
-            truncation=True,
-            padding="max_length"
-        )
-    
-    # labels["input_ids"] = [
-    #     [(l if l != tokenizer.pad_token_id else -100) for l in label]
-    #     for label in labels["input_ids"]
-    # ]
-
-    
-    model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
 
 def map_dataset(tokenizer, dataset):
 
-    tokenized_datasets = dataset.map(
-        lambda examples: preprocess_function(examples, tokenizer),
-        batched=False, 
-        remove_columns=dataset["train"].column_names )
+    def tokenize_shard(shard):
+        return shard.map(
+                lambda examples: preprocess_function(examples, tokenizer),
+                batched=False, 
+                remove_columns=dataset["train"].column_names 
+            )
+    
 
-    return tokenized_datasets
+    batch_size = 100000
+    num_rows = len(dataset['train'])
+    for start in range(0, len(dataset['train']), batch_size):
+        end = min(start + batch_size, num_rows)
+        shard = dataset['train'].select(range(start, end))
+        tokenized = tokenize_shard(shard)
+        tokenized.save_to_disk(f"{tokenized_data_path}/train_shard_{start // batch_size}")
+        logger.info(f"Succesfully tokenized and saved shard no {start // batch_size} ")
+    
+    tokenized = tokenize_shard(dataset['test'])
+    tokenized.save_to_disk(f"{tokenized_data_path}/test_shard")
+    logger.info(f"Succesfully tokenized and saved final test shard")
+
+
+    # tokenized_datasets = dataset.map(
+    #     lambda examples: preprocess_function(examples, tokenizer),
+    #     batched=False, 
+    #     remove_columns=dataset["train"].column_names )
+
+    # return tokenized_datasets

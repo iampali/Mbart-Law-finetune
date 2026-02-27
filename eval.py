@@ -1,108 +1,187 @@
+import os
+import json
+import torch
+import wandb
+import numpy as np
+import torch.multiprocessing as mp
+from tqdm.auto import tqdm
+from dotenv import load_dotenv
+
+# Your custom imports
 from sacrebleu.metrics import BLEU
 import evaluate
-import os
-import numpy as np
-from environment_variables import model_save_path, tokenized_data_path
+from environment_variables import model_save_path, temp_file_path
 from setup_logging import logger
-from initialize_model import load_save_model, init_tokenizer
-from transformers import DataCollatorForSeq2Seq, Seq2SeqTrainingArguments, Seq2SeqTrainer
-from datasets import load_from_disk
-import argparse
+from initialize_model import init_model, init_tokenizer
+from torch.utils.data import DataLoader
+from create_tokenized_dataset import get_tokenized_dataset
+from transformers import DataCollatorForSeq2Seq
 
-parser = argparse.ArgumentParser(description="Pass the language you want to start the evaluation")
-parser.add_argument("--language", default="French", choices=["Portuguese","French","Spanish","German"], help="Select the language to translate to")
 
-args = parser.parse_args()
+def run_inference_process(checkpoint_path, eval_batch_size, tokenizer, dataset):
+    """Runs the model generation and saves raw text to a temp JSON file."""
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    logger.info(f"Process started: Generating results for {checkpoint_path} on {device}")
 
-def compute_metrics(eval_preds, tokenizer):
-    preds, labels = eval_preds
-    if isinstance(preds, tuple):
-        preds = preds[0]
+    # Initialize the model and load the specific checkpoint weights
+    model = init_model(get_lora_model=True) 
+    
+    data_collator = DataCollatorForSeq2Seq(
+        tokenizer=tokenizer, 
+        model=model, 
+        padding=True
+    )
+
+    test_dataloader = DataLoader(
+        dataset, 
+        batch_size=eval_batch_size, 
+        shuffle=True, 
+        collate_fn=data_collator
+    )
+    
+    state_dict_path = os.path.join(checkpoint_path, "pytorch_model.bin")
+    if os.path.exists(state_dict_path):
+        model.load_state_dict(torch.load(state_dict_path))
+    
+    model.to(device)
+    model.eval()
+
+    all_preds = []
+    all_labels = []
+    all_inputs = []
+
+    with torch.no_grad():
+        for batch in test_dataloader:
+            generated_tokens = model.generate(
+                input_ids=batch["input_ids"].to(device),
+                attention_mask=batch["attention_mask"].to(device),
+                max_new_tokens=100
+            )
+            
+            labels = batch["labels"]
+            
+            # FIXED: Convert to standard Python lists for JSON serialization
+            all_inputs.extend(batch["input_ids"].cpu().numpy().tolist())
+            all_preds.extend(generated_tokens.cpu().numpy().tolist())
+            all_labels.extend(labels.cpu().numpy().tolist())
+
+    # Save to temp file
+    data = {"all_preds": all_preds, "all_labels": all_labels, "all_inputs": all_inputs}
+    with open(temp_file_path, "w") as f:
+        json.dump(data, f)
+        
+    logger.info(f"Inference complete for {checkpoint_path}. Exiting process to free VRAM.")
+
+
+def run_metrics_process(checkpoint_name, tokenizer, return_dict):
+    """Reads the temp JSON file, calculates metrics, and updates the shared dict."""
+    logger.info(f"Process started: Calculating metrics for {checkpoint_name}")
+    
+    with open(temp_file_path, "r") as f:
+        data = json.load(f)
+    
+    inputs = data["all_inputs"]
+    preds = data["all_preds"]
+    labels = data["all_labels"]
+    
+    # FIXED: Temporarily cast to numpy array for the masking condition
+    labels = [np.where(np.array(label) != -100, label, tokenizer.pad_token_id).tolist() for label in labels]
+    
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-    #labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    decoded_sources = tokenizer.batch_decode(inputs, skip_special_tokens=True)
+    
+    decoded_preds = [pred.strip() for pred in decoded_preds]
+    decoded_labels = [label.strip() for label in decoded_labels]
+    decoded_sources = [src.strip() for src in decoded_sources]
+
+    logger.info("Calculating BLEU")
     bleu_score = BLEU().corpus_score(decoded_preds, [decoded_labels]).score
     
-    # chrF
+    logger.info("Calculating chrF")
     chrf_metric = evaluate.load("chrf")
-    chrf_res = chrf_metric.compute(predictions=decoded_preds, references=decoded_labels)
-    chrf_score = chrf_res["score"]
+    chrf_score = chrf_metric.compute(predictions=decoded_preds, references=decoded_labels)["score"]
     
-    # TER
+    logger.info("Calculating TER")
     ter_metric = evaluate.load("ter")
-    ter_res = ter_metric.compute(predictions=decoded_preds, references=decoded_labels)
-    ter_score = ter_res["score"]
+    ter_score = ter_metric.compute(predictions=decoded_preds, references=decoded_labels)["score"]
 
-    # Get sources from the evaluation dataset (assuming order is preserved)
-    #sources = final_dataset['val']['eng']
-
-
-    # # COMET
-    # comet_metric = evaluate.load("comet", "wmt20-comet-da")  # defaults to a model checkpoint
-    # comet_res = comet_metric.compute(
-    #     sources=sources,
-    #     predictions=decoded_preds,
-    #     references=decoded_labels,
-    #     batch_size=8,
-    #     #model_name_or_path="Unbabel/wmt22-comet-da"  # example checkpoint
-    # )
-    # The returned dictionary may include e.g. 'scores' (list) and 'mean_score'
-    #comet_score = comet_res["mean_score"] if "mean_score" in comet_res else sum(comet_res["scores"]) / len(comet_res["scores"])
+    logger.info("Calculating COMET")
+    comet_metric = evaluate.load("comet", "wmt20-comet-da")
+    comet_res = comet_metric.compute(
+        sources=decoded_sources,
+        predictions=decoded_preds,
+        references=decoded_labels,
+    )
+    comet_score = comet_res["mean_score"]
     
-    return {"bleu": bleu_score, "chrf" : chrf_score, "ter" : ter_score}
+    metrics = {
+        "bleu": bleu_score, 
+        "chrf": chrf_score, 
+        "ter": ter_score, 
+        "comet": comet_score
+    }
 
-# Define paths
-output_dir = os.path.join(model_save_path, args.language)
-logger.info(f"Fetching all the checkpoints from {output_dir}")
-checkpoint_dirs = [d for d in os.listdir(output_dir) if d.startswith("checkpoint-")]
-checkpoint_dirs.sort(key = lambda x : int(x.split('-')[-1]))
+    # Save results to the shared dictionary
+    return_dict[checkpoint_name] = metrics
+    logger.info(f"Metrics complete for {checkpoint_name}. Exiting process.")
 
-dataset = load_from_disk(os.path.join(tokenized_data_path, args.language))
 
-for checks in checkpoint_dirs:
-    model = load_save_model(args.language, checks)
-    tokenizer, target_lang = init_tokenizer(args.language)
+class evaluation_model:
 
-    # Data collator
-    data_collator = DataCollatorForSeq2Seq(
-        tokenizer,
-        model=model,
-        label_pad_token_id=tokenizer.pad_token_id
-    )
+    def __init__(self, eval_batch_size: int, wandb_eval_run_name: str):
+        self.eval_batch_size = eval_batch_size
+        load_dotenv(override=True)
 
-    # Define training args for evaluation only (minimal settings)
-    eval_args = Seq2SeqTrainingArguments(
-        output_dir=output_dir,  # Can reuse or set a temp dir
-        per_device_eval_batch_size=4,
-        predict_with_generate=True,
-        bf16=True,
-        report_to="none",  # No logging
-    )
+        logger.info("Setting up the tokenizer for evaluation")
+        self.tokenizer = init_tokenizer()
 
-    # Create a new trainer for evaluation
-    eval_trainer = Seq2SeqTrainer(
-        model=model,
-        args=eval_args,
-        eval_dataset=dataset["val"],  # Or "test" if preferred
-        processing_class=tokenizer,
-        data_collator=data_collator,
-        compute_metrics=compute_metrics
-    )
+        logger.info("Setting up the test tokenized dataset")
+        _, self.test_tokenized_dataset = get_tokenized_dataset(self.tokenizer, 0)
+        self.test_tokenized_dataset = self.test_tokenized_dataset.select(range(20)) # comment it later
 
-    # gen_kwargs={
-    # "forced_bos_token_id": target_lang,  
-    # "max_length": 128,
-    # "num_beams": 4
-    # }
+        # Get list of checkpoints
+        self.checkpoints = [d for d in os.listdir(model_save_path) if d.startswith("checkpoint-")]
+        self.checkpoints.sort(key=lambda x: int(x.split("-")[1]))
+        logger.info(f"Found the total saved checkpoints to be {len(self.checkpoints)}")
 
-    # Run evaluation
-    eval_results = eval_trainer.evaluate()
-    print(f"Results for {checks}: {eval_results}")
-    print("-" * 50)
+        self.wandb_eval_run_name = wandb_eval_run_name
 
-    # Optional: Clean up to free memory
-    del model
-    del eval_trainer
-    import torch
-    torch.cuda.empty_cache()
+        logger.info("Initiating the multi-processing pipeline")
+        self.manager = mp.Manager()
+        self.return_dict = self.manager.dict()
 
+    def start_eval(self):
+        # Initialize wandb here in the main process
+        wandb.init(name=self.wandb_eval_run_name)
+        
+        for checkpoint in tqdm(self.checkpoints, desc="Evaluating Checkpoints"):
+            logger.info(f"Initiating the evaluation for {checkpoint}")
+            checkpoint_path = os.path.join(model_save_path, checkpoint)
+
+            # STEP 1: Spawn and run Inference (Notice the comma making args a tuple)
+            p_infer = mp.Process(
+                target=run_inference_process, 
+                args=(checkpoint_path, self.eval_batch_size, self.tokenizer, self.test_tokenized_dataset)
+            )
+            p_infer.start()
+            p_infer.join() 
+            
+            # STEP 2: Spawn and run Metrics on the output (Notice the comma making args a tuple)
+            p_metrics = mp.Process(
+                target=run_metrics_process, 
+                args=(checkpoint, self.tokenizer, self.return_dict)
+            )
+            p_metrics.start()
+            p_metrics.join() 
+
+            # IMPORTANT: Log to wandb from the main process, not the spawned child
+            if checkpoint in self.return_dict:
+                metrics = self.return_dict[checkpoint]
+                wandb.log(metrics)
+                logger.info(f"Logged metrics for {checkpoint}: {metrics}")
+            
+            logger.info(f"All done for {checkpoint}")
+
+        # Finish wandb run
+        wandb.finish()
