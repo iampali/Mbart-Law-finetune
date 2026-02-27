@@ -25,16 +25,27 @@ class NoisyTopk(nn.Module):
         logits = self.linear(mh_output)
         noise = self.noise_linear(mh_output)
 
-        noisy_logits = logits + torch.randn_like(logits) * F.softplus(noise)
+        # FIX 1: Force softplus back to bfloat16 immediately!
+        # This stops the float32 promotion from infecting noisy_logits
+        safe_noise = F.softplus(noise).to(logits.dtype)
+        
+        noisy_logits = logits + torch.randn_like(logits) * safe_noise
 
         ## choosing top_k from noisy_logits
-
         top_k_noisy_logits, top_k_noisy_indices = noisy_logits.topk(self.top_k, dim=-1)
-        inf_matrix = torch.full_like(logits, float('-inf'))
+        
+        # FIX 2: Create the matrix explicitly matching noisy_logits
+        inf_matrix = torch.full_like(noisy_logits, float('-inf'))
 
+        # This will now work perfectly because both are guaranteed bfloat16
         sparse_noisy_logits = inf_matrix.scatter(dim=-1, index=top_k_noisy_indices, src=top_k_noisy_logits)
 
-        return F.softmax(sparse_noisy_logits, dim=-1), top_k_noisy_indices
+        # FIX 3: Softmax also gets promoted to float32 by autocast. 
+        # We must cast the final routing probabilities back to bfloat16 
+        # so they don't crash your expert matrix multiplications later!
+        routing_probs = F.softmax(sparse_noisy_logits, dim=-1).to(logits.dtype)
+
+        return routing_probs, top_k_noisy_indices
     
 class SparseMOE(nn.Module):
     def __init__(self, n_embed, num_experts, top_K):
@@ -48,14 +59,14 @@ class SparseMOE(nn.Module):
         final_output = torch.zeros_like(x) # 2,4,8 (bs, sl, embed_size)
 
         ## Reshape inputs for batch processing
-        flat_x = x.view(-1, x.size(-1)) # 8,8 (bs*sl, embed_size)
-        flat_gating_output = gating_output.view(-1, gating_output.size(-1)) # 8, 3 (bs*sl, num_experts)
+        flat_x = x.reshape(-1, x.size(-1)) # 8,8 (bs*sl, embed_size)
+        flat_gating_output = gating_output.reshape(-1, gating_output.size(-1)) # 8, 3 (bs*sl, num_experts)
 
         # Preprocess each expert in parallel
         for i, expert in enumerate(self.experts):
             # Create a mask for the inputs where the current expert is in top-k
             expert_mask = (indices == i).any(dim=-1) # 2, 4 (bs, sl)
-            flat_mask = expert_mask.view(-1) # 8 (bs * sl)
+            flat_mask = expert_mask.reshape(-1) # 8 (bs * sl)
   
             if flat_mask.any():
                 expert_input = flat_x[flat_mask] # depends on how many True's are there, let's say 6 tokens will moving to the expert i. (6, 8) (selected num_tokens from bs * sl, embed_size)
