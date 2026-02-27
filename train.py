@@ -38,10 +38,14 @@ class training_model:
         logger.info(f"Setting up the Model")
         self.model = init_model(get_lora_model=True)
         
-        # ---------------------------------------------------------
-        # OOM FIX 1: Enable Gradient Checkpointing
-        # ---------------------------------------------------------
-        self.model.gradient_checkpointing_enable()
+        # # ---------------------------------------------------------
+        # # OOM FIX 1: Enable Gradient Checkpointing
+        # # ---------------------------------------------------------
+        # self.model.gradient_checkpointing_enable()    
+        # # THE FIX: Force the graph to stay alive for PEFT adapters
+        # self.model.enable_input_require_grads() 
+        
+        logger.info("Gradient checkpointing enabled to save VRAM.")
         logger.info("Gradient checkpointing enabled to save VRAM.")
 
         # Instantiate the Data Collator
