@@ -138,7 +138,7 @@ class evaluation_model:
 
         logger.info("Setting up the test tokenized dataset")
         _, self.test_tokenized_dataset = get_tokenized_dataset(self.tokenizer, 0)
-        self.test_tokenized_dataset = self.test_tokenized_dataset.select(range(20)) # comment it later
+        # self.test_tokenized_dataset = self.test_tokenized_dataset.select(range(20)) # comment it later
 
         # Get list of checkpoints
         self.checkpoints = [d for d in os.listdir(model_save_path) if d.startswith("checkpoint-")]
