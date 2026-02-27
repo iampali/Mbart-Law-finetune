@@ -2,9 +2,17 @@ from tokenize_dataset import create_dataset_dict, map_dataset
 from format_dataset import get_final_dataframe
 import os
 from environment_variables import tokenized_data_path
-from datasets import load_from_disk, DatasetDict
+from datasets import load_from_disk, DatasetDict, concatenate_datasets
 from setup_logging import logger
+from pathlib import Path
 
+def load_dataset():
+    data_dir = Path(tokenized_data_path)
+    shard_paths = [f for f in data_dir.iterdir() if not f.is_file() and f.name.split('_')[0] == 'train']
+    datasets_list = [load_from_disk(path) for path in shard_paths]
+    train_tokenized_dataset = concatenate_datasets(datasets_list)
+    test_tokenized_dataset = load_from_disk(data_dir/'test_shard')
+    return train_tokenized_dataset, test_tokenized_dataset
 
 def get_tokenized_dataset(tokenizer, dataset_length):
 
@@ -21,33 +29,26 @@ def get_tokenized_dataset(tokenizer, dataset_length):
     
     if os.path.exists(tokenized_data_path):
         logger.info(f"Tokenized dataset is already present at {tokenized_data_path}")
-        tokenized_datasets = load_from_disk(tokenized_data_path)
     else:
         # Apply preprocessing
         logger.info(f"Tokenized dataset for not found.. creating and tokenzing data")
-        dataframe = get_final_dataframe()
-        dataset = create_dataset_dict(dataframe)
-        logger.info("Creating the dataset.. staring tokenizing it")
-        tokenized_datasets = map_dataset(tokenizer, dataset)
-        tokenized_datasets.save_to_disk(tokenized_data_path)
+        train_df, test_df = get_final_dataframe()
+        train_dataset, test_dataset = create_dataset_dict(train_df), create_dataset_dict(test_df)
+        dataset = DatasetDict({ "train" : train_dataset,
+                                "test" : test_dataset})
+        logger.info("Created the dataset.. now starting tokenizing it")
+        map_dataset(tokenizer, dataset)        
         logger.info(f"Tokenization successfull and saved the tokenized data on {tokenized_data_path}")
-
+    
+    train_tokenized_dataset, test_tokenized_dataset = load_dataset()
     if dataset_length == 0 :
-        return tokenized_datasets
+        return train_tokenized_dataset, test_tokenized_dataset
 
-    return filter_dataset(tokenized_datasets, dataset_length)
+    return filter_dataset(train_tokenized_dataset, dataset_length), test_tokenized_dataset
 
 
 def filter_dataset(tokenized_datasets, dataset_length):
-    logger.info(f"Extracting first {dataset_length} from the dataset.")
-    train_data_length = len(tokenized_datasets['train'])
-    val_data_length = len(tokenized_datasets['val'])
-    per_train = round(dataset_length / train_data_length * 100, 2)
-    val_length = round(per_train * val_data_length / 100)
+    logger.info(f"Extracting first {dataset_length} from the train dataset.")
 
-    return DatasetDict({
-    "train": tokenized_datasets["train"].select(range(dataset_length)),
-    "val": tokenized_datasets["val"].select(range(val_length)),
-    "test": tokenized_datasets["test"].select(range(val_length)),
-    })
+    return tokenized_datasets.select(range(dataset_length))
 

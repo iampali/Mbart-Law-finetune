@@ -1,15 +1,15 @@
-checkpoint = "facebook/mbart-large-50-many-to-many-mmt"
+checkpoint = "facebook/nllb-200-1.3B"
 tokenized_data_path = "./tokenized_dataset/"
 model_save_path = "./output/"
 raw_data_path = "./data/"
+temp_file_path = './data/temp/checkpoint.json' # used to save the model output during evaluation before killing the process
 
-
-langs = ['english', 'French', 'Portuguese', 'Spanish', 'German']
+langs = ['English', 'French', 'Portuguese', 'Finnish', 'Maltese']
 
 lang_codes = {
-    "english": "en_XX",
-    "Portuguese": "pt_XX",
-    "Spanish": "es_XX",
-    "French": "fr_XX",
-    "German": "de_DE"
+    "English": "eng_Latn",
+    "Portuguese": "por_Latn",
+    "German": "deu_Latn",
+    "Finnish" : "fin_Latn",
+    "Maltese" : "mlt_Latn"
 } # Adjust codes as needed

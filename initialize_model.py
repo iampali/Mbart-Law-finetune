@@ -1,11 +1,10 @@
 from environment_variables import checkpoint, model_save_path
 import torch
 import os
-from transformers import AutoModelForSeq2SeqLM, BitsAndBytesConfig, AutoTokenizer
-
-
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
-from setup_logging import logger
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from moe_adaptor import SparseMOE
+import torch
+import torch.nn as nn
 
 def init_tokenizer() :
 
@@ -13,57 +12,73 @@ def init_tokenizer() :
 
     return tokenizer
 
-def init_model(get_lora_model : bool = True):
+def init_model(device : str = 'cuda' , get_lora_model : bool = True):
 
-    bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.bfloat16,
-    bnb_4bit_use_double_quant=True
-    )
 
 
     model = AutoModelForSeq2SeqLM.from_pretrained(
     checkpoint,
-    quantization_config=bnb_config,
-    device_map="auto",
+    device_map=device,
     trust_remote_code=True
     )
 
     if get_lora_model:
 
-        model = prepare_model_for_kbit_training(model)
+        # Freeze all parameters
+        for param in model.parameters():
+            param.requires_grad = False
+        # -----------------------
+        # Inject MoE into model
+        # -----------------------
+        for i in range(len(model.model.encoder.layers)):
+            if (i+1) %4 == 0:
+                original_layer = model.model.encoder.layers[i]
+                model.model.encoder.layers[i] = EncoderLayerWithMoE(original_layer)
 
-        # Define QLoRA configuration
-        lora_config = LoraConfig(
-            r=16,
-            lora_alpha=32,
-            target_modules=[
-                "all-linear"
-                # "q_proj",
-                # "k_proj",
-                # "v_proj",
-                # "out_proj",
-                # "gate_proj",
-                # "up_proj",
-                # "down_proj"
-            ],  # Typical targets for encoder-decoder models like mBART
-            lora_dropout=0.1,
-            bias="none",
-            task_type="SEQ_2_SEQ_LM"
-        )
+        # Model now has MoE after each encoder layer's fc2
 
-        # Apply QLoRA to the model
-        model = get_peft_model(model, lora_config)
-        logger.info("Got the LORA config Model")
-        # logger.info(f"Total trainable parameter in model are {model.print_trainable_parameters()}")
+        for i in range(len(model.model.decoder.layers)):
+            if (i+1) %4 == 0:
+                original_layer = model.model.decoder.layers[i]
+                model.model.decoder.layers[i] = DecoderLayerWithMoE(original_layer)
+
+        
 
     return model
 
+# ----------------------------------------
+# Replace FFN (after fc2) with MoE wrapper
+# ----------------------------------------
+class EncoderLayerWithMoE(nn.Module):
+    def __init__(self, original_layer, num_experts=4, top_k=2):
+        super().__init__()
+        self.original_layer = original_layer
+        hidden_size = original_layer.fc2.out_features
+        self.moe = SparseMOE(hidden_size, num_experts, top_k)
 
-def load_save_model(language, model_checkpoint_name):
-    model_path = os.path.join(model_save_path, language, model_checkpoint_name)
-    logger.info(f"Successfully load the model from path {model_path}")
-    new_model = AutoModelForSeq2SeqLM.from_pretrained(checkpoint)
-    model = PeftModel.from_pretrained(new_model, model_path)
-    return model
+    def forward(self, *args, **kwargs):
+        # Run original layer
+        hidden_states = self.original_layer(*args, **kwargs)[0]
+        
+        # Apply MoE after fc2
+        hidden_states = self.moe(hidden_states)
+
+        return (hidden_states,)
+    
+
+class DecoderLayerWithMoE(nn.Module):
+    def __init__(self, original_layer, num_experts=4, top_k=2):
+        super().__init__()
+        self.original_layer = original_layer
+        hidden_size = original_layer.fc2.out_features
+        self.moe = SparseMOE(hidden_size, num_experts, top_k)
+
+    def forward(self, *args, **kwargs):
+        # Run original layer
+        hidden_states = self.original_layer(*args, **kwargs)[0]
+        
+        # Apply MoE after fc2
+        hidden_states = self.moe(hidden_states)
+
+        return (hidden_states,)
+    

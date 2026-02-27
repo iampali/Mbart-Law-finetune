@@ -3,6 +3,8 @@ from initialize_model import init_tokenizer, load_save_model, init_model
 import argparse
 from setup_logging import logger
 from environment_variables import lang_codes, checkpoint
+from vllm import LLM
+
 
 parser = argparse.ArgumentParser(description="Pass input_text, language and model_checkpoint_name")
 parser.add_argument("--input_text", default="something", type=str, required=False, help="Input text to translate")
@@ -21,6 +23,7 @@ def translate(input_text, language, model_checkpoint_name):
         model = init_model(get_lora_model=False)
         logger.info(f"Loading base model from {checkpoint} for {language}")
     logger.info(f"Model successfully loaded now Loading tokenizer for {language}")
+    llm = LLM(model=model)
     tokenizer = init_tokenizer()
     target_lang = lang_codes[language]
     logger.info(f"The lang code for {language} is {target_lang}")
@@ -32,11 +35,13 @@ def translate(input_text, language, model_checkpoint_name):
         # outputs = model.generate(**inputs, max_new_tokens=100)
         # Generate Bemba translation
         with torch.no_grad():
-            outputs = model.generate(
+            outputs = llm.generate(
             **inputs,
             forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang),  # Force start with Bemba lang
         )
-        print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+        # print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+        for output in outputs:
+            print({output.outputs[0].text})
 
 
 translate(args.input_text, args.language, args.model_checkpoint_name)
