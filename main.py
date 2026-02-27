@@ -10,7 +10,8 @@ def parse_args():
 
     parser.add_argument("--dataset_length",type= int, default=0, help="Select how much data you want to train the model, by default it's 0 which means whole data.")
     parser.add_argument("--wandb_run_name", default="Mbart50", help="Provide a run name for wandb")
-    parser.add_argument("--save_steps", type=int, default=100, help="Steps afer which you want to save your model")
+    parser.add_argument("--save_every_epochs", type=int, default=1, help="Epochs afer which you want to save your model")
+    parser.add_argument("--save_total_limit", type=int, default=10, help="How many checkpoints you want to save")
     parser.add_argument("--logging_steps", type=int, default=100, help="Provide after how many steps you want to send logs")
     parser.add_argument("--num_train_epochs", type=int, default=100, help="Provide the number of epochs")
     parser.add_argument("--learning_rate",type=float, default=2e-5, help="Add a learning rate")
@@ -37,7 +38,8 @@ if __name__ == '__main__':
         training = training_model(
             dataset_length=args.dataset_length,
             wandb_run_name=args.wandb_run_name,
-            save_steps=args.save_steps,
+            save_every_epochs=args.save_every_epochs,
+            save_total_limit=args.save_total_limit,
             logging_steps=args.logging_steps,
             num_train_epochs=args.num_train_epochs,
             learning_rate=args.learning_rate,
