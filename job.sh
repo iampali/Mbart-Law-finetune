@@ -3,7 +3,7 @@
 #SBATCH -p compute            
 #SBATCH -J NLLB               
 #SBATCH --cpus-per-task=4   
-#SBATCH --mem=60000           
+#SBATCH --mem=80000           
 #SBATCH -t 1-02:30:00         
 #SBATCH --gres=gpu:a100:1
 
