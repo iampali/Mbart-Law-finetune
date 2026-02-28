@@ -4,6 +4,7 @@ from eval import evaluation_model
 import torch.multiprocessing as mp
 from setup_logging import logger
 from environment_variables import model_save_path
+from datetime import datetime
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Pass some Arguemtns to train the model")
@@ -31,21 +32,24 @@ if __name__ == '__main__':
         pass # Prevents crashing if the method is accidentally set twice
 
     args = parse_args()
-    
+    date_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    wandb_run_name_final = f"{args.wandb_run_name}-{date_time}"
+    output_folder = f"Model-{date_time}"
     if args.train_strategy:
 
         logger.info(f"Starting Training Here {args.train_strategy}")
 
         training = training_model(
             dataset_length=args.dataset_length,
-            wandb_run_name=args.wandb_run_name,
+            wandb_run_name=wandb_run_name_final + '-train',
             save_every_epochs=args.save_every_epochs,
             save_total_limit=args.save_total_limit,
             logging_steps=args.logging_steps,
             num_train_epochs=args.num_train_epochs,
             learning_rate=args.learning_rate,
             batch_size=args.batch_size,
-            gradient_accumulation_steps=args.gradient_accumulation_steps
+            gradient_accumulation_steps=args.gradient_accumulation_steps,
+            output_folder=output_folder
         )
 
         training.start_training()
@@ -59,7 +63,8 @@ if __name__ == '__main__':
 
         evaluation = evaluation_model(
             eval_batch_size=args.eval_batch_size,
-            wandb_eval_run_name=args.wandb_run_name + '-eval'
+            wandb_eval_run_name=wandb_run_name_final + '-eval',
+            output_folder=output_folder
         )
 
         evaluation.start_eval()
