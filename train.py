@@ -8,13 +8,13 @@ from setup_logging import logger
 from initialize_model import init_model, init_tokenizer
 from create_tokenized_dataset import get_tokenized_dataset
 from torch.utils.data import DataLoader
-from environment_variables import model_save_path
+from environment_variables import model_save_path, wandb_project_name
 from dotenv import load_dotenv
 from transformers import DataCollatorForSeq2Seq
 
 class training_model:
 
-    def __init__(self, dataset_length: int, wandb_run_name: str, save_every_epochs: int, save_total_limit: int, logging_steps: int, num_train_epochs: int, learning_rate: float, batch_size: int, gradient_accumulation_steps: int = 4):
+    def __init__(self, dataset_length: int, wandb_run_name: str, save_every_epochs: int, save_total_limit: int, logging_steps: int, num_train_epochs: int, learning_rate: float, batch_size: int, gradient_accumulation_steps: int, output_folder : str):
 
         self.dataset_length = dataset_length # FIXED: Removed trailing comma that created a tuple
         self.wandb_run_name = wandb_run_name
@@ -25,6 +25,7 @@ class training_model:
         self.learning_rate = learning_rate
         self.batch_size = batch_size # This is now your MICRO batch size
         self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.output_folder = output_folder
         weight_decay = 0.01
 
         load_dotenv(override=True)
@@ -86,7 +87,7 @@ class training_model:
         )
 
         # Initialize wandb
-        wandb.init(name=self.wandb_run_name)
+        wandb.init(project=wandb_project_name, name=self.wandb_run_name)
 
     def start_training(self):
 
@@ -139,16 +140,17 @@ class training_model:
             
             # Save checkpoint every save_every_epochs epochs
             if (epoch + 1) % self.save_every_epochs == 0:
-                checkpoint_path = os.path.join(model_save_path, f"checkpoint-{epoch+1}")
+                final_path = model_save_path + self.output_folder
+                checkpoint_path = os.path.join(final_path, f"checkpoint-{epoch+1}")
                 os.makedirs(checkpoint_path, exist_ok=True)
                 torch.save(self.model.state_dict(), os.path.join(checkpoint_path, "pytorch_model.bin"))
                 
                 # Manage save_total_limit
-                checkpoints = [d for d in os.listdir(model_save_path) if d.startswith("checkpoint-")]
+                checkpoints = [d for d in os.listdir(final_path) if d.startswith("checkpoint-")]
                 checkpoints.sort(key=lambda x: int(x.split("-")[1]))
                 while len(checkpoints) > self.save_total_limit:
                     oldest_checkpoint = checkpoints.pop(0)
-                    shutil.rmtree(os.path.join(model_save_path, oldest_checkpoint))
+                    shutil.rmtree(os.path.join(final_path, oldest_checkpoint))
 
         # Finish wandb run
         wandb.finish()

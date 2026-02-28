@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 # Your custom imports
 from sacrebleu.metrics import BLEU
 import evaluate
-from environment_variables import model_save_path, temp_file_path
+from environment_variables import model_save_path, temp_file_path, wandb_project_name
 from setup_logging import logger
 from initialize_model import init_model, init_tokenizer
 from torch.utils.data import DataLoader
@@ -129,7 +129,7 @@ def run_metrics_process(checkpoint_name, tokenizer, return_dict):
 
 class evaluation_model:
 
-    def __init__(self, eval_batch_size: int, wandb_eval_run_name: str):
+    def __init__(self, eval_batch_size: int, wandb_eval_run_name: str, output_folder : str):
         self.eval_batch_size = eval_batch_size
         load_dotenv(override=True)
 
@@ -140,8 +140,9 @@ class evaluation_model:
         _, self.test_tokenized_dataset = get_tokenized_dataset(self.tokenizer, 0)
         # self.test_tokenized_dataset = self.test_tokenized_dataset.select(range(20)) # comment it later
 
+        self.final_path = model_save_path + output_folder
         # Get list of checkpoints
-        self.checkpoints = [d for d in os.listdir(model_save_path) if d.startswith("checkpoint-")]
+        self.checkpoints = [d for d in os.listdir(self.final_path) if d.startswith("checkpoint-")]
         self.checkpoints.sort(key=lambda x: int(x.split("-")[1]))
         logger.info(f"Found the total saved checkpoints to be {len(self.checkpoints)}")
 
@@ -153,11 +154,12 @@ class evaluation_model:
 
     def start_eval(self):
         # Initialize wandb here in the main process
-        wandb.init(name=self.wandb_eval_run_name)
+        wandb.init(project=wandb_project_name, name=self.wandb_eval_run_name)
+
         
         for checkpoint in tqdm(self.checkpoints, desc="Evaluating Checkpoints"):
             logger.info(f"Initiating the evaluation for {checkpoint}")
-            checkpoint_path = os.path.join(model_save_path, checkpoint)
+            checkpoint_path = os.path.join(self.final_path, checkpoint)
 
             # STEP 1: Spawn and run Inference (Notice the comma making args a tuple)
             p_infer = mp.Process(
